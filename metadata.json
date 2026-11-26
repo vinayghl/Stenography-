@@ -1,0 +1,6 @@
+{
+  "name": "STEGO – Secure Image Messenger",
+  "description": "Client-side LSB image steganography and AES-GCM encrypted secret messaging inside lossless PNG images.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

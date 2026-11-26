@@ -1,0 +1,2945 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>STEGO – Secure Image Messenger</title>
+  <meta name="description" content="Hide confidential information inside ordinary images using browser-local LSB steganography and optional AES-256-GCM encryption." />
+  <meta property="og:title" content="STEGO – Secure Image Messenger" />
+  <meta property="og:description" content="Hide confidential information inside ordinary images using browser-local LSB steganography and optional AES-256-GCM encryption." />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=JetBrains+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg-canvas: #080a0c;
+      --bg-elevated: rgba(17, 21, 26, 0.78);
+      --bg-elevated-solid: #11151a;
+      --bg-input: #0b0e12;
+      --bg-subtle: rgba(255, 255, 255, 0.03);
+      --border-hairline: rgba(255, 255, 255, 0.08);
+      --border-strong: rgba(255, 255, 255, 0.15);
+      --text-primary: #f8fafc;
+      --text-secondary: #a1a9b8;
+      --text-muted: #6b7485;
+      --accent: #10b981;
+      --accent-hover: #059669;
+      --accent-text: #34d399;
+      --accent-soft: rgba(16, 185, 129, 0.12);
+      --accent-border: rgba(16, 185, 129, 0.32);
+      --danger: #ef4444;
+      --danger-soft: rgba(239, 68, 68, 0.12);
+      --danger-border: rgba(239, 68, 68, 0.35);
+      --warning: #f59e0b;
+      --warning-soft: rgba(245, 158, 11, 0.12);
+      --warning-border: rgba(245, 158, 11, 0.35);
+      --radius-lg: 16px;
+      --radius-md: 12px;
+      --radius-sm: 8px;
+      --font-display: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      --font-body: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+      --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      background-color: var(--bg-canvas);
+      color: var(--text-primary);
+      font-family: var(--font-body);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    body {
+      min-height: 100vh;
+      background-color: var(--bg-canvas);
+      background-image:
+        radial-gradient(ellipse 80% 45% at 50% -12%, rgba(16, 185, 129, 0.1), transparent 70%),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+        linear-gradient(to right, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+      background-size: 100% 100%, 48px 48px, 48px 48px;
+      color: var(--text-primary);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    :focus-visible {
+      outline: 2px solid var(--accent-text);
+      outline-offset: 2px;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+
+    .container {
+      width: 100%;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    .mono-num {
+      font-family: var(--font-mono);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Top Navigation Bar (3-Zone Contract) */
+    .site-header {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      height: 68px;
+      background: rgba(8, 10, 12, 0.82);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border-bottom: 1px solid var(--border-hairline);
+    }
+
+    .header-inner {
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 32px;
+    }
+
+    .brand-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      color: var(--text-primary);
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 1.125rem;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .brand-mark {
+      width: 28px;
+      height: 28px;
+      display: block;
+      flex-shrink: 0;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+    }
+
+    .nav-link {
+      position: relative;
+      text-decoration: none;
+      color: var(--text-secondary);
+      font-size: 0.9375rem;
+      font-weight: 500;
+      white-space: nowrap;
+      flex-shrink: 0;
+      padding: 6px 0;
+      transition: color 160ms var(--ease-out);
+    }
+
+    .nav-link:hover,
+    .nav-link.active {
+      color: var(--text-primary);
+    }
+
+    .nav-link::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 2px;
+      background: var(--accent);
+      transform: scaleX(0);
+      transform-origin: center;
+      transition: transform 180ms var(--ease-out);
+      border-radius: 2px;
+    }
+
+    .nav-link:hover::after,
+    .nav-link.active::after {
+      transform: scaleX(1);
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+
+    .mobile-menu-btn {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      width: 44px;
+      height: 44px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-hairline);
+      background: var(--bg-elevated);
+      color: var(--text-primary);
+      cursor: pointer;
+    }
+
+    .mobile-drawer {
+      display: none;
+      position: fixed;
+      top: 68px;
+      left: 0;
+      right: 0;
+      background: rgba(11, 14, 18, 0.96);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border-hairline);
+      padding: 16px 24px 20px;
+      z-index: 49;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .mobile-drawer.open {
+      display: flex;
+    }
+
+    .mobile-drawer .nav-link {
+      padding: 10px 4px;
+      font-size: 1rem;
+    }
+
+    @media (max-width: 768px) {
+      .nav-links,
+      .header-cta-desktop {
+        display: none;
+      }
+      .mobile-menu-btn {
+        display: inline-flex;
+      }
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 42px;
+      padding: 10px 20px;
+      border-radius: var(--radius-sm);
+      font-family: var(--font-body);
+      font-size: 0.9375rem;
+      font-weight: 600;
+      line-height: 1;
+      white-space: nowrap;
+      flex-shrink: 0;
+      cursor: pointer;
+      border: 1px solid transparent;
+      text-decoration: none;
+      transition: background-color 160ms var(--ease-out), border-color 160ms var(--ease-out), color 160ms var(--ease-out), transform 140ms var(--ease-out), opacity 160ms var(--ease-out);
+    }
+
+    .btn:active:not(:disabled) {
+      transform: translateY(1px);
+    }
+
+    .btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      background-color: var(--accent);
+      color: #04120c;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background-color: var(--accent-text);
+    }
+
+    .btn-secondary {
+      background-color: rgba(255, 255, 255, 0.05);
+      border-color: var(--border-strong);
+      color: var(--text-primary);
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+      background-color: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.24);
+    }
+
+    .btn-ghost {
+      background-color: transparent;
+      border-color: var(--border-hairline);
+      color: var(--text-secondary);
+    }
+
+    .btn-ghost:hover:not(:disabled) {
+      color: var(--text-primary);
+      border-color: var(--border-strong);
+      background-color: rgba(255, 255, 255, 0.04);
+    }
+
+    .btn-sm {
+      min-height: 36px;
+      padding: 8px 14px;
+      font-size: 0.875rem;
+    }
+
+    @media (max-width: 640px) {
+      .btn {
+        min-height: 44px;
+      }
+    }
+
+    /* Glassmorphism Surface */
+    .glass-card {
+      background: var(--bg-elevated);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border: 1px solid var(--border-hairline);
+      border-radius: var(--radius-lg);
+    }
+
+    /* Sections */
+    .section {
+      padding: 84px 0;
+      scroll-margin-top: 72px;
+    }
+
+    .section-divider {
+      border-top: 1px solid var(--border-hairline);
+    }
+
+    .section-header {
+      max-width: 680px;
+      margin-bottom: 36px;
+    }
+
+    .section-kicker {
+      font-size: 0.8125rem;
+      font-weight: 500;
+      color: var(--accent-text);
+      margin-bottom: 8px;
+      letter-spacing: 0.02em;
+    }
+
+    .section-title {
+      font-family: var(--font-display);
+      font-size: clamp(1.625rem, 2.6vw, 2.25rem);
+      font-weight: 700;
+      line-height: 1.18;
+      letter-spacing: -0.02em;
+      color: var(--text-primary);
+      text-wrap: balance;
+      margin-bottom: 10px;
+    }
+
+    .section-desc {
+      color: var(--text-secondary);
+      font-size: 1rem;
+      line-height: 1.6;
+    }
+
+    /* Hero Section */
+    .hero-section {
+      padding: 64px 0 80px;
+      scroll-margin-top: 72px;
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1.02fr 0.98fr;
+      gap: 48px;
+      align-items: center;
+    }
+
+    @media (max-width: 980px) {
+      .hero-grid {
+        grid-template-columns: 1fr;
+        gap: 36px;
+      }
+    }
+
+    .hero-meta {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      margin-bottom: 18px;
+    }
+
+    .hero-meta-accent {
+      color: var(--accent-text);
+      font-weight: 500;
+    }
+
+    .hero-title {
+      font-family: var(--font-display);
+      font-size: clamp(2.25rem, 4.1vw, 3.5rem);
+      font-weight: 700;
+      line-height: 1.08;
+      letter-spacing: -0.03em;
+      color: var(--text-primary);
+      text-wrap: balance;
+      margin-bottom: 20px;
+    }
+
+    .hero-subtitle {
+      font-size: 1.0625rem;
+      line-height: 1.65;
+      color: var(--text-secondary);
+      max-width: 540px;
+      margin-bottom: 30px;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 28px;
+    }
+
+    .hero-specs {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      padding-top: 20px;
+      border-top: 1px solid var(--border-hairline);
+    }
+
+    /* Interactive Hero Demo Visual */
+    .demo-frame {
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .demo-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .demo-title {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .segmented-control {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px;
+      background: var(--bg-input);
+      border: 1px solid var(--border-hairline);
+      border-radius: var(--radius-sm);
+    }
+
+    .seg-btn {
+      min-height: 32px;
+      padding: 6px 12px;
+      border: none;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--text-secondary);
+      font-family: var(--font-body);
+      font-size: 0.8125rem;
+      font-weight: 500;
+      white-space: nowrap;
+      cursor: pointer;
+      transition: background-color 150ms var(--ease-out), color 150ms var(--ease-out);
+    }
+
+    .seg-btn.active {
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--text-primary);
+    }
+
+    .demo-canvas-wrap {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 10;
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      border: 1px solid var(--border-hairline);
+      background: #06080a;
+      user-select: none;
+    }
+
+    .demo-canvas-wrap canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .demo-split-line {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: rgba(255, 255, 255, 0.85);
+      pointer-events: none;
+      transform: translateX(-1px);
+    }
+
+    .demo-split-handle {
+      position: absolute;
+      top: 50%;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--bg-elevated-solid);
+      border: 1.5px solid var(--accent-text);
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+    }
+
+    .demo-slider-input {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      cursor: ew-resize;
+      margin: 0;
+    }
+
+    .demo-corner-labels {
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      pointer-events: none;
+    }
+
+    .demo-label {
+      padding: 4px 10px;
+      border-radius: 6px;
+      background: rgba(8, 10, 12, 0.78);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    .demo-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      font-size: 0.8125rem;
+      color: var(--text-secondary);
+    }
+
+    /* Workspace 2-Column Layout */
+    .workspace-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      align-items: stretch;
+    }
+
+    @media (max-width: 960px) {
+      .workspace-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .panel {
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--border-hairline);
+    }
+
+    .panel-title {
+      font-family: var(--font-display);
+      font-size: 1.0625rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .panel-meta {
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+    }
+
+    /* Dropzone */
+    .dropzone {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      gap: 12px;
+      min-height: 210px;
+      padding: 28px 20px;
+      border: 1.5px dashed var(--border-strong);
+      border-radius: var(--radius-md);
+      background: var(--bg-input);
+      cursor: pointer;
+      transition: border-color 160ms var(--ease-out), background-color 160ms var(--ease-out);
+    }
+
+    .dropzone:hover,
+    .dropzone.drag-active {
+      border-color: var(--accent);
+      background: rgba(16, 185, 129, 0.05);
+    }
+
+    .dropzone-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-hairline);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--accent-text);
+    }
+
+    .dropzone-title {
+      font-size: 0.9375rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .dropzone-sub {
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      max-width: 320px;
+    }
+
+    .dropzone-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-top: 4px;
+    }
+
+    .file-input-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    /* Preview Frame */
+    .preview-box {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .preview-image-wrap {
+      position: relative;
+      width: 100%;
+      height: 240px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-hairline);
+      background: var(--bg-input);
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .preview-image-wrap img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      padding: 12px 14px;
+      border-radius: var(--radius-sm);
+      background: var(--bg-input);
+      border: 1px solid var(--border-hairline);
+    }
+
+    @media (max-width: 540px) {
+      .stats-row {
+        grid-template-columns: 1fr;
+        gap: 8px;
+      }
+    }
+
+    .stat-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .stat-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .stat-value {
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    /* Form Controls */
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .field-label-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .field-label {
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    .counter-text {
+      font-size: 0.8125rem;
+      color: var(--text-secondary);
+    }
+
+    .counter-text.over-limit {
+      color: var(--danger);
+      font-weight: 600;
+    }
+
+    .textarea-field {
+      width: 100%;
+      min-height: 170px;
+      padding: 14px 16px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-hairline);
+      background: var(--bg-input);
+      color: var(--text-primary);
+      font-family: var(--font-body);
+      font-size: 0.9375rem;
+      line-height: 1.6;
+      resize: vertical;
+      transition: border-color 160ms var(--ease-out);
+    }
+
+    .textarea-field::placeholder {
+      color: var(--text-muted);
+    }
+
+    .textarea-field:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .textarea-readonly {
+      min-height: 220px;
+      font-family: var(--font-body);
+      background: var(--bg-input);
+    }
+
+    .capacity-track {
+      width: 100%;
+      height: 4px;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.08);
+      overflow: hidden;
+    }
+
+    .capacity-fill {
+      height: 100%;
+      width: 0%;
+      background: var(--accent);
+      transition: width 160ms var(--ease-out), background-color 160ms var(--ease-out);
+    }
+
+    .capacity-fill.warning {
+      background: var(--warning);
+    }
+
+    .capacity-fill.danger {
+      background: var(--danger);
+    }
+
+    /* Password Option */
+    .crypto-box {
+      padding: 14px 16px;
+      border-radius: var(--radius-md);
+      background: var(--bg-input);
+      border: 1px solid var(--border-hairline);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      cursor: pointer;
+    }
+
+    .toggle-text {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .toggle-title {
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    .toggle-sub {
+      font-size: 0.78125rem;
+      color: var(--text-muted);
+    }
+
+    .switch {
+      position: relative;
+      width: 42px;
+      height: 24px;
+      flex-shrink: 0;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+      position: absolute;
+    }
+
+    .switch-track {
+      position: absolute;
+      inset: 0;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.14);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      transition: background-color 160ms var(--ease-out), border-color 160ms var(--ease-out);
+    }
+
+    .switch-thumb {
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #ffffff;
+      transition: transform 160ms var(--ease-out);
+    }
+
+    .switch input:checked + .switch-track {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .switch input:checked + .switch-track .switch-thumb {
+      transform: translateX(18px);
+    }
+
+    .switch input:focus-visible + .switch-track {
+      outline: 2px solid var(--accent-text);
+      outline-offset: 2px;
+    }
+
+    .password-input-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .text-input {
+      width: 100%;
+      height: 42px;
+      padding: 0 44px 0 14px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-hairline);
+      background: var(--bg-elevated-solid);
+      color: var(--text-primary);
+      font-family: var(--font-body);
+      font-size: 0.9375rem;
+      transition: border-color 160ms var(--ease-out);
+    }
+
+    .text-input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .input-eye-btn {
+      position: absolute;
+      right: 6px;
+      width: 32px;
+      height: 32px;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    .input-eye-btn:hover {
+      color: var(--text-primary);
+    }
+
+    /* Action Row */
+    .action-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    /* Progress Bar */
+    .progress-box {
+      padding: 12px 14px;
+      border-radius: var(--radius-sm);
+      background: var(--bg-input);
+      border: 1px solid var(--border-hairline);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .progress-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.8125rem;
+      color: var(--text-secondary);
+    }
+
+    .progress-track {
+      width: 100%;
+      height: 6px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.08);
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: var(--accent);
+      transition: width 120ms linear;
+    }
+
+    /* Notifications */
+    .notice {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 12px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 0.875rem;
+      line-height: 1.5;
+      border: 1px solid transparent;
+    }
+
+    .notice-icon {
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .notice-success {
+      background: var(--accent-soft);
+      border-color: var(--accent-border);
+      color: #d1fae5;
+    }
+
+    .notice-error {
+      background: var(--danger-soft);
+      border-color: var(--danger-border);
+      color: #fee2e2;
+    }
+
+    .notice-warning {
+      background: var(--warning-soft);
+      border-color: var(--warning-border);
+      color: #fef3c7;
+    }
+
+    /* Empty State */
+    .empty-state {
+      flex: 1;
+      min-height: 220px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      gap: 10px;
+      padding: 28px 20px;
+      border-radius: var(--radius-md);
+      background: var(--bg-input);
+      border: 1px solid var(--border-hairline);
+      color: var(--text-muted);
+    }
+
+    .empty-state-title {
+      font-size: 0.9375rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+    }
+
+    .empty-state-desc {
+      font-size: 0.8125rem;
+      max-width: 300px;
+    }
+
+    /* Encoded Result Output */
+    .output-section {
+      padding-top: 16px;
+      border-top: 1px solid var(--border-hairline);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    /* About Section */
+    .about-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 24px;
+    }
+
+    @media (max-width: 860px) {
+      .about-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .about-card {
+      padding: 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .about-num {
+      font-family: var(--font-mono);
+      font-size: 0.8125rem;
+      color: var(--accent-text);
+      font-weight: 500;
+    }
+
+    .about-heading {
+      font-family: var(--font-display);
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      line-height: 1.3;
+    }
+
+    .about-text {
+      font-size: 0.9375rem;
+      color: var(--text-secondary);
+      line-height: 1.68;
+    }
+
+    /* Interactive Bit Diagram in About */
+    .bit-diagram {
+      margin-top: 6px;
+      padding: 14px;
+      border-radius: var(--radius-sm);
+      background: var(--bg-input);
+      border: 1px solid var(--border-hairline);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .bit-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 0.8125rem;
+    }
+
+    .bit-channel {
+      color: var(--text-secondary);
+      font-weight: 500;
+      width: 68px;
+    }
+
+    .bit-bytes {
+      font-family: var(--font-mono);
+      letter-spacing: 0.05em;
+      color: var(--text-primary);
+    }
+
+    .bit-lsb {
+      display: inline-block;
+      padding: 1px 5px;
+      border-radius: 4px;
+      background: var(--accent-soft);
+      border: 1px solid var(--accent-border);
+      color: var(--accent-text);
+      font-weight: 600;
+    }
+
+    .comparison-table-wrap {
+      margin-top: 24px;
+      overflow-x: auto;
+    }
+
+    .comparison-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.9375rem;
+    }
+
+    .comparison-table th,
+    .comparison-table td {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border-hairline);
+    }
+
+    .comparison-table th {
+      font-family: var(--font-display);
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .comparison-table td {
+      color: var(--text-secondary);
+    }
+
+    .comparison-table td:first-child {
+      color: var(--text-primary);
+      font-weight: 500;
+    }
+
+    /* Footer */
+    .site-footer {
+      border-top: 1px solid var(--border-hairline);
+      padding: 40px 0;
+      background: rgba(8, 10, 12, 0.9);
+    }
+
+    .footer-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+
+    .footer-note {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      max-width: 560px;
+    }
+
+    .footer-links {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .footer-link {
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 0.875rem;
+      transition: color 150ms var(--ease-out);
+    }
+
+    .footer-link:hover {
+      color: var(--text-primary);
+    }
+
+    .hidden {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+  <!-- Top Navigation -->
+  <header class="site-header">
+    <div class="container header-inner">
+      <a href="#home" class="brand-link" aria-label="STEGO Home">
+        <svg class="brand-mark" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+          <rect x="2" y="2" width="24" height="24" rx="6" stroke="#10B981" stroke-width="1.75" />
+          <path d="M8 14L14 8L20 14L14 20L8 14Z" stroke="#F8FAFC" stroke-width="1.5" />
+          <rect x="12.5" y="12.5" width="3" height="3" fill="#10B981" />
+        </svg>
+        <span>STEGO</span>
+      </a>
+
+      <nav class="nav-links" aria-label="Primary navigation">
+        <a href="#home" class="nav-link active" data-nav="home">Home</a>
+        <a href="#encode" class="nav-link" data-nav="encode">Encode</a>
+        <a href="#decode" class="nav-link" data-nav="decode">Decode</a>
+        <a href="#about" class="nav-link" data-nav="about">About</a>
+      </nav>
+
+      <div class="header-actions">
+        <a href="#encode" class="btn btn-primary btn-sm header-cta-desktop">Start Encoding</a>
+        <button type="button" class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Toggle navigation menu" aria-expanded="false">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <line x1="4" y1="7" x2="20" y2="7" />
+            <line x1="4" y1="12" x2="20" y2="12" />
+            <line x1="4" y1="17" x2="20" y2="17" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div class="mobile-drawer" id="mobileDrawer" aria-label="Mobile navigation">
+    <a href="#home" class="nav-link" data-nav-mobile="home">Home</a>
+    <a href="#encode" class="nav-link" data-nav-mobile="encode">Encode</a>
+    <a href="#decode" class="nav-link" data-nav-mobile="decode">Decode</a>
+    <a href="#about" class="nav-link" data-nav-mobile="about">About</a>
+  </div>
+
+  <main>
+    <!-- Hero Section -->
+    <section id="home" class="hero-section">
+      <div class="container">
+        <div class="hero-grid">
+          <div>
+            <div class="hero-meta">
+              <span class="hero-meta-accent">Client-Side Image Steganography</span>
+              <span aria-hidden="true">·</span>
+              <span>Zero Server Uploads</span>
+            </div>
+            <h1 class="hero-title">Your Message. Hidden in Plain Sight.</h1>
+            <p class="hero-subtitle">
+              Hide confidential information inside ordinary images and reveal it whenever you need.
+            </p>
+            <div class="hero-actions">
+              <a href="#encode" class="btn btn-primary">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </svg>
+                <span>Start Encoding</span>
+              </a>
+              <a href="#decode" class="btn btn-secondary">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                  <path d="M7 11V7a5 5 0 0 1 9.9-1" />
+                </svg>
+                <span>Decode Image</span>
+              </a>
+            </div>
+            <div class="hero-specs">
+              <span>Lossless PNG Output</span>
+              <span aria-hidden="true">·</span>
+              <span>UTF-8 Multi-Language Support</span>
+              <span aria-hidden="true">·</span>
+              <span>Optional AES-256-GCM Encryption</span>
+            </div>
+          </div>
+
+          <!-- Visual Demonstration -->
+          <div class="glass-card demo-frame">
+            <div class="demo-toolbar">
+              <span class="demo-title">Live LSB Pixel Transformation</span>
+              <div class="segmented-control" role="tablist" aria-label="Demonstration view mode">
+                <button type="button" class="seg-btn active" id="demoModeSplit" role="tab" aria-selected="true">Split Compare</button>
+                <button type="button" class="seg-btn" id="demoModeLsb" role="tab" aria-selected="false">LSB Bit-Plane</button>
+              </div>
+            </div>
+
+            <div class="demo-canvas-wrap" id="demoCanvasWrap">
+              <canvas id="demoCanvas" width="720" height="450" aria-label="Visual demonstration comparing original cover image and LSB-encoded PNG output"></canvas>
+              <div class="demo-split-line" id="demoSplitLine" style="left: 50%;"></div>
+              <div class="demo-split-handle" id="demoSplitHandle" style="left: 50%;" aria-hidden="true">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="15 18 9 12 15 6" />
+                </svg>
+              </div>
+              <input type="range" min="0" max="100" value="50" class="demo-slider-input" id="demoSlider" aria-label="Compare original and encoded image" />
+              <div class="demo-corner-labels">
+                <span class="demo-label" id="demoLeftLabel">Original Cover</span>
+                <span class="demo-label" id="demoRightLabel">Encoded PNG (Hidden Payload)</span>
+              </div>
+            </div>
+
+            <div class="demo-footer">
+              <span id="demoCaptionText">Only the least significant bit of RGB channels changes — visually indistinguishable.</span>
+              <button type="button" class="btn btn-ghost btn-sm" id="heroLoadSampleBtn">Try with Sample Image</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Encode Section -->
+    <section id="encode" class="section section-divider">
+      <div class="container">
+        <div class="section-header">
+          <div class="section-kicker">Sender Workflow</div>
+          <h2 class="section-title">Encode Secret Message</h2>
+          <p class="section-desc">
+            Select a cover image, type your confidential message, and generate a lossless PNG containing the hidden binary payload.
+          </p>
+        </div>
+
+        <div class="workspace-grid">
+          <!-- Encode Left: Upload & Preview -->
+          <div class="glass-card panel">
+            <div class="panel-header">
+              <h3 class="panel-title">1. Cover Image</h3>
+              <span class="panel-meta">PNG, JPG, JPEG</span>
+            </div>
+
+            <div class="dropzone" id="encodeDropzone" tabindex="0" role="button" aria-label="Upload cover image by clicking or dragging a file">
+              <input type="file" id="encodeFileInput" class="file-input-hidden" accept=".png,.jpg,.jpeg,image/png,image/jpeg" />
+              <div class="dropzone-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="17 8 12 3 7 8" />
+                  <line x1="12" y1="3" x2="12" y2="15" />
+                </svg>
+              </div>
+              <div class="dropzone-title">Drag and drop your image here</div>
+              <div class="dropzone-sub">Processing stays 100% local in your browser memory. Never uploaded anywhere.</div>
+              <div class="dropzone-actions">
+                <button type="button" class="btn btn-secondary btn-sm" id="encodeBrowseBtn">Browse Image</button>
+                <button type="button" class="btn btn-ghost btn-sm" id="encodeSampleBtn">Use Sample Image</button>
+              </div>
+            </div>
+
+            <div class="preview-box hidden" id="encodePreviewBox">
+              <div class="preview-image-wrap">
+                <img id="encodePreviewImg" alt="Uploaded cover image preview" />
+              </div>
+              <div class="stats-row">
+                <div class="stat-item">
+                  <span class="stat-label">Dimensions</span>
+                  <span class="stat-value mono-num" id="encodeDimensions">-</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">Source File</span>
+                  <span class="stat-value mono-num" id="encodeFileMeta">-</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">Max Capacity</span>
+                  <span class="stat-value mono-num" id="encodeCapacity">-</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="empty-state" id="encodeImageEmpty">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                <circle cx="8.5" cy="8.5" r="1.5" />
+                <polyline points="21 15 16 10 5 21" />
+              </svg>
+              <div class="empty-state-title">No cover image selected</div>
+              <div class="empty-state-desc">Upload a PNG or JPEG photo to inspect its dimensions and available LSB payload capacity.</div>
+            </div>
+          </div>
+
+          <!-- Encode Right: Message, Options & Output -->
+          <div class="glass-card panel">
+            <div class="panel-header">
+              <h3 class="panel-title">2. Secret Message & Output</h3>
+              <span class="panel-meta">Lossless PNG Export</span>
+            </div>
+
+            <div class="field-group">
+              <div class="field-label-row">
+                <label for="secretMessageInput" class="field-label">Secret Message</label>
+                <span class="counter-text mono-num" id="charCounter">0 chars · 0 bytes</span>
+              </div>
+              <textarea
+                id="secretMessageInput"
+                class="textarea-field"
+                placeholder="Write your confidential message here. Supports spaces, line breaks, punctuation, and all UTF-8 languages."
+              ></textarea>
+              <div class="capacity-track" aria-hidden="true">
+                <div class="capacity-fill" id="capacityBarFill"></div>
+              </div>
+            </div>
+
+            <div class="crypto-box">
+              <label class="toggle-row" for="encodeEncryptToggle">
+                <span class="toggle-text">
+                  <span class="toggle-title">Password Protection (AES-256-GCM)</span>
+                  <span class="toggle-sub">Encrypt payload before embedding. Receiver must enter the exact password.</span>
+                </span>
+                <span class="switch">
+                  <input type="checkbox" id="encodeEncryptToggle" />
+                  <span class="switch-track"><span class="switch-thumb"></span></span>
+                </span>
+              </label>
+
+              <div class="field-group hidden" id="encodePasswordGroup">
+                <label for="encodePasswordInput" class="field-label">Encryption Password</label>
+                <div class="password-input-wrap">
+                  <input type="password" id="encodePasswordInput" class="text-input" placeholder="Enter a strong shared passphrase" autocomplete="new-password" />
+                  <button type="button" class="input-eye-btn" data-toggle-pw="encodePasswordInput" aria-label="Show password">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="action-row">
+              <button type="button" class="btn btn-primary" id="encodeBtn">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <polyline points="16 18 22 12 16 6" />
+                  <polyline points="8 6 2 12 8 18" />
+                </svg>
+                <span>Encode Message</span>
+              </button>
+              <button type="button" class="btn btn-ghost" id="encodeResetBtn">Reset</button>
+            </div>
+
+            <div class="progress-box hidden" id="encodeProgressBox" aria-live="polite">
+              <div class="progress-header">
+                <span id="encodeProgressLabel">Embedding binary payload into RGB pixels...</span>
+                <span class="mono-num" id="encodeProgressPct">0%</span>
+              </div>
+              <div class="progress-track">
+                <div class="progress-fill" id="encodeProgressFill"></div>
+              </div>
+            </div>
+
+            <div class="notice hidden" id="encodeNotice" role="status" aria-live="polite"></div>
+
+            <div class="output-section hidden" id="encodeOutputSection">
+              <div class="panel-header" style="padding-bottom: 10px;">
+                <h4 class="panel-title" style="font-size: 0.95rem;">Encoded Image Preview</h4>
+                <span class="panel-meta mono-num" id="encodedOutputMeta">PNG Ready</span>
+              </div>
+              <div class="preview-image-wrap" style="height: 200px;">
+                <img id="encodedPreviewImg" alt="Encoded PNG image preview containing hidden message" />
+              </div>
+              <div class="action-row">
+                <button type="button" class="btn btn-primary" id="downloadEncodedBtn">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                  <span>Download Image</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Decode Section -->
+    <section id="decode" class="section section-divider">
+      <div class="container">
+        <div class="section-header">
+          <div class="section-kicker">Receiver Workflow</div>
+          <h2 class="section-title">Decode Hidden Message</h2>
+          <p class="section-desc">
+            Upload an encoded PNG image received from a sender to extract the least significant bits and reconstruct the hidden message.
+          </p>
+        </div>
+
+        <div class="workspace-grid">
+          <!-- Decode Left: Upload & Controls -->
+          <div class="glass-card panel">
+            <div class="panel-header">
+              <h3 class="panel-title">1. Encoded Image</h3>
+              <span class="panel-meta">Lossless PNG</span>
+            </div>
+
+            <div class="dropzone" id="decodeDropzone" tabindex="0" role="button" aria-label="Upload encoded image by clicking or dragging a file">
+              <input type="file" id="decodeFileInput" class="file-input-hidden" accept=".png,.jpg,.jpeg,image/png,image/jpeg" />
+              <div class="dropzone-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="17 8 12 3 7 8" />
+                  <line x1="12" y1="3" x2="12" y2="15" />
+                </svg>
+              </div>
+              <div class="dropzone-title">Drag and drop encoded PNG here</div>
+              <div class="dropzone-sub">Upload the exact PNG file shared by the sender. Lossy re-compression can erase hidden bits.</div>
+              <div class="dropzone-actions">
+                <button type="button" class="btn btn-secondary btn-sm" id="decodeBrowseBtn">Browse Image</button>
+              </div>
+            </div>
+
+            <div class="preview-box hidden" id="decodePreviewBox">
+              <div class="preview-image-wrap">
+                <img id="decodePreviewImg" alt="Uploaded encoded image preview" />
+              </div>
+              <div class="stats-row">
+                <div class="stat-item">
+                  <span class="stat-label">Dimensions</span>
+                  <span class="stat-value mono-num" id="decodeDimensions">-</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">Source File</span>
+                  <span class="stat-value mono-num" id="decodeFileMeta">-</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">Payload Limit</span>
+                  <span class="stat-value mono-num" id="decodeCapacity">-</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="crypto-box">
+              <div class="field-group">
+                <label for="decodePasswordInput" class="field-label">Decryption Password (if protected)</label>
+                <div class="password-input-wrap">
+                  <input type="password" id="decodePasswordInput" class="text-input" placeholder="Leave blank if image is not password-protected" autocomplete="current-password" />
+                  <button type="button" class="input-eye-btn" data-toggle-pw="decodePasswordInput" aria-label="Show decryption password">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="action-row">
+              <button type="button" class="btn btn-primary" id="decodeBtn">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+                <span>Decode Message</span>
+              </button>
+              <button type="button" class="btn btn-ghost" id="decodeResetBtn">Reset</button>
+            </div>
+
+            <div class="progress-box hidden" id="decodeProgressBox" aria-live="polite">
+              <div class="progress-header">
+                <span id="decodeProgressLabel">Scanning RGB pixel channels...</span>
+                <span class="mono-num" id="decodeProgressPct">0%</span>
+              </div>
+              <div class="progress-track">
+                <div class="progress-fill" id="decodeProgressFill"></div>
+              </div>
+            </div>
+
+            <div class="notice hidden" id="decodeNotice" role="status" aria-live="polite"></div>
+          </div>
+
+          <!-- Decode Right: Extracted Message -->
+          <div class="glass-card panel">
+            <div class="panel-header">
+              <h3 class="panel-title">2. Extracted Message</h3>
+              <span class="panel-meta mono-num" id="decodedStatsMeta">Awaiting image</span>
+            </div>
+
+            <div class="empty-state" id="decodeEmptyState">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="16" y1="13" x2="8" y2="13" />
+                <line x1="16" y1="17" x2="8" y2="17" />
+              </svg>
+              <div class="empty-state-title">No message extracted yet</div>
+              <div class="empty-state-desc">Upload an encoded PNG image and click Decode Message to reveal its hidden contents.</div>
+            </div>
+
+            <div class="field-group hidden" id="decodedOutputWrap" style="flex: 1;">
+              <label for="decodedMessageOutput" class="field-label">Recovered Secret Message</label>
+              <textarea id="decodedMessageOutput" class="textarea-field textarea-readonly" readonly></textarea>
+              <div class="action-row" style="margin-top: 6px;">
+                <button type="button" class="btn btn-primary" id="copyDecodedBtn">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                  </svg>
+                  <span id="copyDecodedText">Copy Message</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- About Section -->
+    <section id="about" class="section section-divider">
+      <div class="container">
+        <div class="section-header">
+          <div class="section-kicker">How It Works</div>
+          <h2 class="section-title">Understanding Image Steganography</h2>
+          <p class="section-desc">
+            A closer look at how binary data resides silently inside ordinary digital photographs without leaving visible artifacts.
+          </p>
+        </div>
+
+        <div class="about-grid">
+          <article class="glass-card about-card">
+            <span class="about-num">01</span>
+            <h3 class="about-heading">What Image Steganography Is</h3>
+            <p class="about-text">
+              Steganography is the practice of concealing a secret message inside an ordinary, non-secret carrier file. Unlike scrambled ciphertext that immediately signals encrypted communication, an encoded image looks completely normal to anyone inspecting or intercepting the file.
+            </p>
+          </article>
+
+          <article class="glass-card about-card">
+            <span class="about-num">02</span>
+            <h3 class="about-heading">How LSB Steganography Works</h3>
+            <p class="about-text">
+              Each digital pixel stores Red, Green, and Blue intensities from 0 to 255 (8 bits per channel). Modifying the 8th bit—the Least Significant Bit—changes a channel value by at most 1 out of 255, which is far below the threshold of human visual perception.
+            </p>
+            <div class="bit-diagram" aria-label="Example RGB pixel LSB modification">
+              <div class="bit-row">
+                <span class="bit-channel">Red</span>
+                <span class="bit-bytes">1000111<span class="bit-lsb">0</span></span>
+                <span class="mono-num" style="color: var(--text-muted);">142 → 143</span>
+              </div>
+              <div class="bit-row">
+                <span class="bit-channel">Green</span>
+                <span class="bit-bytes">1100110<span class="bit-lsb">1</span></span>
+                <span class="mono-num" style="color: var(--text-muted);">204 → 205</span>
+              </div>
+              <div class="bit-row">
+                <span class="bit-channel">Blue</span>
+                <span class="bit-bytes">1011001<span class="bit-lsb">1</span></span>
+                <span class="mono-num" style="color: var(--text-muted);">179 → 179</span>
+              </div>
+            </div>
+          </article>
+
+          <article class="glass-card about-card">
+            <span class="about-num">03</span>
+            <h3 class="about-heading">How Secret Messages Are Hidden in Pixels</h3>
+            <p class="about-text">
+              STEGO converts your UTF-8 message into a binary stream prefixed by a compact header containing a signature, encryption flags, exact byte length, and a CRC32 checksum. Those bits are written sequentially into the RGB least significant bits and saved as a lossless PNG so compression never alters pixel data.
+            </p>
+          </article>
+
+          <article class="glass-card about-card">
+            <span class="about-num">04</span>
+            <h3 class="about-heading">Combining Steganography & Encryption</h3>
+            <p class="about-text">
+              Encryption hides the meaning of a message, while steganography hides the fact that a message exists at all. When password protection is enabled, STEGO encrypts your text with AES-256-GCM via the Web Crypto API before embedding the ciphertext into image pixels.
+            </p>
+          </article>
+        </div>
+
+        <div class="glass-card comparison-table-wrap">
+          <table class="comparison-table">
+            <thead>
+              <tr>
+                <th>Property</th>
+                <th>Encryption (AES-GCM)</th>
+                <th>Steganography (LSB)</th>
+                <th>Combined in STEGO</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Primary Goal</td>
+                <td>Make message unreadable without key</td>
+                <td>Conceal existence of communication</td>
+                <td>Hidden carrier + unreadable payload</td>
+              </tr>
+              <tr>
+                <td>Suspicion Raised</td>
+                <td>High (output looks like random ciphertext)</td>
+                <td>Low (looks like an ordinary PNG photo)</td>
+                <td>Low (ordinary PNG photo)</td>
+              </tr>
+              <tr>
+                <td>If Discovered</td>
+                <td>Protected by 256-bit key strength</td>
+                <td>Readable if format is known</td>
+                <td>Requires exact decryption password</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <div>
+        <a href="#home" class="brand-link" style="margin-bottom: 8px;">STEGO</a>
+        <p class="footer-note">
+          All image pixel processing, LSB encoding, and AES-256-GCM cryptography run strictly inside your browser. No files or messages are ever transmitted or stored externally.
+        </p>
+      </div>
+      <div class="footer-links">
+        <a href="#home" class="footer-link">Home</a>
+        <a href="#encode" class="footer-link">Encode</a>
+        <a href="#decode" class="footer-link">Decode</a>
+        <a href="#about" class="footer-link">About</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    (() => {
+      'use strict';
+
+      // =========================================================================
+      // Binary Protocol Constants & Utilities
+      // =========================================================================
+      // Header format (13 bytes = 104 bits):
+      // [0..3]  Magic: "STG1" (0x53, 0x54, 0x47, 0x31)
+      // [4]     Flags: bit 0 = AES-256-GCM encrypted
+      // [5..8]  Payload Length: uint32 big-endian
+      // [9..12] Payload CRC32: uint32 big-endian
+      const MAGIC = [0x53, 0x54, 0x47, 0x31];
+      const HEADER_BYTES = 13;
+      const CRYPTO_OVERHEAD_BYTES = 16 + 12 + 16; // 16B salt + 12B IV + 16B GCM tag
+      const PBKDF2_ITERATIONS = 150000;
+      const FLAG_ENCRYPTED = 0x01;
+
+      const textEncoder = new TextEncoder();
+      const textDecoder = new TextDecoder('utf-8', { fatal: true });
+
+      // Precomputed CRC32 table
+      const CRC_TABLE = (() => {
+        const table = new Uint32Array(256);
+        for (let i = 0; i < 256; i++) {
+          let c = i;
+          for (let k = 0; k < 8; k++) {
+            c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
+          }
+          table[i] = c >>> 0;
+        }
+        return table;
+      })();
+
+      function crc32(bytes) {
+        let crc = 0xffffffff;
+        for (let i = 0; i < bytes.length; i++) {
+          crc = CRC_TABLE[(crc ^ bytes[i]) & 0xff] ^ (crc >>> 8);
+        }
+        return (crc ^ 0xffffffff) >>> 0;
+      }
+
+      function formatBytes(bytes) {
+        if (bytes < 1024) return `${bytes} B`;
+        if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+        return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+      }
+
+      function yieldFrame() {
+        return new Promise((resolve) => setTimeout(resolve, 0));
+      }
+
+      // =========================================================================
+      // Web Crypto API (AES-256-GCM + PBKDF2)
+      // =========================================================================
+      async function deriveAesKey(password, salt, usage) {
+        const keyMaterial = await crypto.subtle.importKey(
+          'raw',
+          textEncoder.encode(password),
+          { name: 'PBKDF2' },
+          false,
+          ['deriveKey']
+        );
+        return crypto.subtle.deriveKey(
+          {
+            name: 'PBKDF2',
+            salt,
+            iterations: PBKDF2_ITERATIONS,
+            hash: 'SHA-256',
+          },
+          keyMaterial,
+          { name: 'AES-GCM', length: 256 },
+          false,
+          [usage]
+        );
+      }
+
+      async function encryptPayload(plainBytes, password) {
+        if (!window.crypto || !window.crypto.subtle) {
+          throw new Error('Web Crypto API is unavailable in this browser context.');
+        }
+        const salt = crypto.getRandomValues(new Uint8Array(16));
+        const iv = crypto.getRandomValues(new Uint8Array(12));
+        const key = await deriveAesKey(password, salt, 'encrypt');
+        const cipherBuffer = await crypto.subtle.encrypt(
+          { name: 'AES-GCM', iv },
+          key,
+          plainBytes
+        );
+        const cipherBytes = new Uint8Array(cipherBuffer);
+        const combined = new Uint8Array(16 + 12 + cipherBytes.length);
+        combined.set(salt, 0);
+        combined.set(iv, 16);
+        combined.set(cipherBytes, 28);
+        return combined;
+      }
+
+      async function decryptPayload(encryptedBytes, password) {
+        if (!window.crypto || !window.crypto.subtle) {
+          throw new Error('Web Crypto API is unavailable in this browser context.');
+        }
+        if (encryptedBytes.length <= 28) {
+          throw new Error('Encrypted payload is truncated or invalid.');
+        }
+        const salt = encryptedBytes.slice(0, 16);
+        const iv = encryptedBytes.slice(16, 28);
+        const cipherBytes = encryptedBytes.slice(28);
+        const key = await deriveAesKey(password, salt, 'decrypt');
+        try {
+          const plainBuffer = await crypto.subtle.decrypt(
+            { name: 'AES-GCM', iv },
+            key,
+            cipherBytes
+          );
+          return new Uint8Array(plainBuffer);
+        } catch {
+          throw new Error('Incorrect password. Unable to decrypt the hidden message.');
+        }
+      }
+
+      // =========================================================================
+      // Image Loading & Canvas Pixel Helpers
+      // =========================================================================
+      function readFileAsImage(file) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onerror = () => reject(new Error('Failed to read the selected file.'));
+          reader.onload = () => {
+            const img = new Image();
+            img.onload = () => {
+              if (!img.naturalWidth || !img.naturalHeight) {
+                reject(new Error('Image has invalid dimensions.'));
+                return;
+              }
+              resolve({ img, dataUrl: reader.result });
+            };
+            img.onerror = () => reject(new Error('Could not decode image. The file may be corrupted or unsupported.'));
+            img.src = reader.result;
+          };
+          reader.readAsDataURL(file);
+        });
+      }
+
+      function computeTotalCapacityBytes(width, height) {
+        return Math.floor((width * height * 3) / 8);
+      }
+
+      function computeMaxMessageBytes(width, height, isEncrypted) {
+        const total = computeTotalCapacityBytes(width, height);
+        const overhead = HEADER_BYTES + (isEncrypted ? CRYPTO_OVERHEAD_BYTES : 0);
+        return Math.max(0, total - overhead);
+      }
+
+      // =========================================================================
+      // LSB Steganography Core (Chunked Async for Smooth Progress)
+      // =========================================================================
+      function buildPacket(payloadBytes, isEncrypted) {
+        const packet = new Uint8Array(HEADER_BYTES + payloadBytes.length);
+        packet[0] = MAGIC[0];
+        packet[1] = MAGIC[1];
+        packet[2] = MAGIC[2];
+        packet[3] = MAGIC[3];
+        packet[4] = isEncrypted ? FLAG_ENCRYPTED : 0x00;
+
+        const view = new DataView(packet.buffer);
+        view.setUint32(5, payloadBytes.length >>> 0, false);
+        view.setUint32(9, crc32(payloadBytes), false);
+        packet.set(payloadBytes, HEADER_BYTES);
+        return packet;
+      }
+
+      async function encodeImageLSB(img, messageText, password, onProgress) {
+        const width = img.naturalWidth;
+        const height = img.naturalHeight;
+        const totalCapacityBytes = computeTotalCapacityBytes(width, height);
+
+        let payloadBytes = textEncoder.encode(messageText);
+        const isEncrypted = Boolean(password);
+        if (isEncrypted) {
+          onProgress(10, 'Encrypting message with AES-256-GCM...');
+          payloadBytes = await encryptPayload(payloadBytes, password);
+        }
+
+        const packet = buildPacket(payloadBytes, isEncrypted);
+        if (packet.length > totalCapacityBytes) {
+          throw new Error(
+            `Message requires ${packet.length.toLocaleString()} bytes (including header), exceeding this image's capacity of ${totalCapacityBytes.toLocaleString()} bytes.`
+          );
+        }
+
+        onProgress(22, 'Preparing canvas pixel buffer...');
+        await yieldFrame();
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+        // Composite onto opaque black to eliminate premultiplied-alpha RGB drift on transparent PNGs
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0);
+
+        const imageData = ctx.getImageData(0, 0, width, height);
+        const pixels = imageData.data;
+
+        // Force full alpha across every pixel so PNG export/re-import is 100% bit-exact
+        for (let a = 3; a < pixels.length; a += 4) {
+          pixels[a] = 255;
+        }
+
+        const totalBits = packet.length * 8;
+        let bitIdx = 0;
+        let pixelChannelPtr = 0; // iterates RGB channels, skipping A
+        const chunkBits = 65536;
+
+        while (bitIdx < totalBits) {
+          const endBit = Math.min(totalBits, bitIdx + chunkBits);
+          for (; bitIdx < endBit; bitIdx++) {
+            const byteIdx = bitIdx >>> 3;
+            const bitPos = 7 - (bitIdx & 7);
+            const bit = (packet[byteIdx] >>> bitPos) & 1;
+
+            // Skip alpha channel (every 4th byte: index % 4 === 3)
+            if ((pixelChannelPtr & 3) === 3) {
+              pixelChannelPtr++;
+            }
+            pixels[pixelChannelPtr] = (pixels[pixelChannelPtr] & 0xfe) | bit;
+            pixelChannelPtr++;
+          }
+          const pct = 25 + Math.round((bitIdx / totalBits) * 60);
+          onProgress(pct, 'Embedding bits into RGB least significant channels...');
+          await yieldFrame();
+        }
+
+        onProgress(90, 'Generating lossless PNG image...');
+        ctx.putImageData(imageData, 0, 0);
+        await yieldFrame();
+
+        const blob = await new Promise((resolve, reject) => {
+          canvas.toBlob((result) => {
+            if (!result) {
+              reject(new Error('Failed to generate PNG output.'));
+            } else {
+              resolve(result);
+            }
+          }, 'image/png');
+        });
+
+        onProgress(100, 'Encoding complete.');
+        return {
+          blob,
+          width,
+          height,
+          embeddedBytes: packet.length,
+          encrypted: isEncrypted,
+        };
+      }
+
+      async function decodeImageLSB(img, password, onProgress) {
+        const width = img.naturalWidth;
+        const height = img.naturalHeight;
+        const totalCapacityBytes = computeTotalCapacityBytes(width, height);
+
+        if (totalCapacityBytes < HEADER_BYTES) {
+          throw new Error('Image is too small to contain a valid STEGO header.');
+        }
+
+        onProgress(15, 'Reading pixel data from image...');
+        await yieldFrame();
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        ctx.drawImage(img, 0, 0);
+
+        const imageData = ctx.getImageData(0, 0, width, height);
+        const pixels = imageData.data;
+
+        let pixelChannelPtr = 0;
+        function readNextByte() {
+          let value = 0;
+          for (let b = 0; b < 8; b++) {
+            if ((pixelChannelPtr & 3) === 3) {
+              pixelChannelPtr++;
+            }
+            value = (value << 1) | (pixels[pixelChannelPtr] & 1);
+            pixelChannelPtr++;
+          }
+          return value;
+        }
+
+        // 1. Read 13-byte header
+        const header = new Uint8Array(HEADER_BYTES);
+        for (let i = 0; i < HEADER_BYTES; i++) {
+          header[i] = readNextByte();
+        }
+
+        if (
+          header[0] !== MAGIC[0] ||
+          header[1] !== MAGIC[1] ||
+          header[2] !== MAGIC[2] ||
+          header[3] !== MAGIC[3]
+        ) {
+          throw new Error(
+            'No hidden STEGO message found in this image. Ensure you uploaded an unmodified lossless PNG created by STEGO.'
+          );
+        }
+
+        const flags = header[4];
+        const isEncrypted = (flags & FLAG_ENCRYPTED) !== 0;
+        const headerView = new DataView(header.buffer);
+        const payloadLength = headerView.getUint32(5, false);
+        const expectedCrc = headerView.getUint32(9, false);
+
+        if (payloadLength === 0 || HEADER_BYTES + payloadLength > totalCapacityBytes) {
+          throw new Error('Hidden STEGO header is corrupted or payload length is out of bounds.');
+        }
+
+        onProgress(35, 'Extracting binary payload from RGB channels...');
+        await yieldFrame();
+
+        const payloadBytes = new Uint8Array(payloadLength);
+        const chunkBytes = 8192;
+        let offset = 0;
+        while (offset < payloadLength) {
+          const end = Math.min(payloadLength, offset + chunkBytes);
+          for (; offset < end; offset++) {
+            payloadBytes[offset] = readNextByte();
+          }
+          const pct = 35 + Math.round((offset / payloadLength) * 45);
+          onProgress(pct, 'Extracting binary payload from RGB channels...');
+          await yieldFrame();
+        }
+
+        onProgress(85, 'Verifying payload integrity...');
+        const actualCrc = crc32(payloadBytes);
+        if (actualCrc !== expectedCrc) {
+          throw new Error(
+            'Hidden data checksum mismatch. The image may have been altered or re-compressed.'
+          );
+        }
+
+        let plainBytes = payloadBytes;
+        if (isEncrypted) {
+          if (!password) {
+            const err = new Error('This image contains a password-protected message. Please enter the decryption password and click Decode Message.');
+            err.needsPassword = true;
+            throw err;
+          }
+          onProgress(92, 'Decrypting payload with AES-256-GCM...');
+          await yieldFrame();
+          plainBytes = await decryptPayload(payloadBytes, password);
+        }
+
+        onProgress(98, 'Reconstructing UTF-8 message...');
+        let message;
+        try {
+          message = textDecoder.decode(plainBytes);
+        } catch {
+          throw new Error('Decoded bytes are not valid UTF-8 text.');
+        }
+
+        onProgress(100, 'Decoding complete.');
+        return {
+          message,
+          byteLength: plainBytes.length,
+          encrypted: isEncrypted,
+        };
+      }
+
+      // =========================================================================
+      // High-Detail Procedural Sample Cover Image Generator (Offline Safe)
+      // =========================================================================
+      function renderCoverArtwork(canvas, width, height) {
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+
+        // Deep twilight gradient sky
+        const sky = ctx.createLinearGradient(0, 0, 0, height * 0.7);
+        sky.addColorStop(0, '#07131a');
+        sky.addColorStop(0.45, '#0f2836');
+        sky.addColorStop(0.85, '#19454e');
+        sky.addColorStop(1, '#255c5a');
+        ctx.fillStyle = sky;
+        ctx.fillRect(0, 0, width, height);
+
+        // Subtle atmospheric horizon glow
+        const glow = ctx.createRadialGradient(width * 0.65, height * 0.45, 10, width * 0.65, height * 0.45, width * 0.55);
+        glow.addColorStop(0, 'rgba(52, 211, 153, 0.28)');
+        glow.addColorStop(0.5, 'rgba(16, 185, 129, 0.08)');
+        glow.addColorStop(1, 'rgba(8, 12, 16, 0)');
+        ctx.fillStyle = glow;
+        ctx.fillRect(0, 0, width, height);
+
+        // Distant stars
+        let seed = 4219;
+        function rand() {
+          seed = (seed * 16807) % 2147483647;
+          return (seed - 1) / 2147483646;
+        }
+        for (let i = 0; i < 95; i++) {
+          const sx = rand() * width;
+          const sy = rand() * height * 0.48;
+          const r = 0.6 + rand() * 1.3;
+          ctx.fillStyle = `rgba(248, 250, 252, ${(0.25 + rand() * 0.65).toFixed(2)})`;
+          ctx.beginPath();
+          ctx.arc(sx, sy, r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // Layered mountain ridges
+        function drawRidge(baseY, amp, freq, color, phase) {
+          ctx.beginPath();
+          ctx.moveTo(0, height);
+          for (let x = 0; x <= width; x += 4) {
+            const nx = x / width;
+            const y =
+              baseY -
+              Math.sin(nx * freq + phase) * amp -
+              Math.cos(nx * freq * 2.3 + phase * 1.7) * (amp * 0.42) -
+              Math.sin(nx * freq * 5.1) * (amp * 0.14);
+            ctx.lineTo(x, y);
+          }
+          ctx.lineTo(width, height);
+          ctx.closePath();
+          ctx.fillStyle = color;
+          ctx.fill();
+        }
+
+        drawRidge(height * 0.56, height * 0.12, 4.2, '#122933', 0.4);
+        drawRidge(height * 0.64, height * 0.1, 5.4, '#0c1d24', 1.9);
+        drawRidge(height * 0.74, height * 0.08, 6.2, '#071217', 3.1);
+
+        // Calm lake reflection
+        const waterY = height * 0.74;
+        const waterGrad = ctx.createLinearGradient(0, waterY, 0, height);
+        waterGrad.addColorStop(0, '#0b1d24');
+        waterGrad.addColorStop(1, '#04090c');
+        ctx.fillStyle = waterGrad;
+        ctx.fillRect(0, waterY, width, height - waterY);
+
+        // Emerald reflection ripples
+        for (let i = 0; i < 42; i++) {
+          const ry = waterY + 6 + rand() * (height - waterY - 12);
+          const rw = 24 + rand() * 110;
+          const rx = width * 0.65 + (rand() - 0.5) * (width * 0.35) - rw / 2;
+          ctx.fillStyle = `rgba(52, 211, 153, ${(0.04 + rand() * 0.12).toFixed(2)})`;
+          ctx.fillRect(rx, ry, rw, 1.5);
+        }
+
+        // Subtle organic sensor noise across pixels for realistic photographic entropy
+        const imgData = ctx.getImageData(0, 0, width, height);
+        const d = imgData.data;
+        for (let i = 0; i < d.length; i += 4) {
+          const n = ((rand() - 0.5) * 4) | 0;
+          d[i] = Math.max(0, Math.min(255, d[i] + n));
+          d[i + 1] = Math.max(0, Math.min(255, d[i + 1] + n));
+          d[i + 2] = Math.max(0, Math.min(255, d[i + 2] + n));
+          d[i + 3] = 255;
+        }
+        ctx.putImageData(imgData, 0, 0);
+      }
+
+      // =========================================================================
+      // Hero Interactive Demonstration Controller
+      // =========================================================================
+      const demoCanvas = document.getElementById('demoCanvas');
+      const demoSlider = document.getElementById('demoSlider');
+      const demoSplitLine = document.getElementById('demoSplitLine');
+      const demoSplitHandle = document.getElementById('demoSplitHandle');
+      const demoModeSplit = document.getElementById('demoModeSplit');
+      const demoModeLsb = document.getElementById('demoModeLsb');
+      const demoLeftLabel = document.getElementById('demoLeftLabel');
+      const demoRightLabel = document.getElementById('demoRightLabel');
+      const demoCaptionText = document.getElementById('demoCaptionText');
+
+      let demoOriginalData = null;
+      let demoEncodedData = null;
+      let demoLsbDiffData = null;
+      let demoMode = 'split'; // 'split' | 'lsb'
+
+      function initHeroDemo() {
+        const w = demoCanvas.width;
+        const h = demoCanvas.height;
+        const off = document.createElement('canvas');
+        renderCoverArtwork(off, w, h);
+        const offCtx = off.getContext('2d');
+        demoOriginalData = offCtx.getImageData(0, 0, w, h);
+
+        // Actually embed a real STEGO packet into a copy for the visual demonstration
+        const sampleMsg = 'Meet at Pier 4 at 21:30 UTC. Bring the verification key.';
+        const packet = buildPacket(textEncoder.encode(sampleMsg), false);
+        // Repeat pattern visually only in LSB diff? No, embed real packet at start + visualize real modified pixels!
+        const encPixels = new Uint8ClampedArray(demoOriginalData.data);
+        const totalBits = packet.length * 8;
+        let ptr = 0;
+        for (let bitIdx = 0; bitIdx < totalBits; bitIdx++) {
+          const bit = (packet[bitIdx >>> 3] >>> (7 - (bitIdx & 7))) & 1;
+          if ((ptr & 3) === 3) ptr++;
+          encPixels[ptr] = (encPixels[ptr] & 0xfe) | bit;
+          ptr++;
+        }
+        demoEncodedData = new ImageData(encPixels, w, h);
+
+        // Build LSB bit-plane visualization (shows actual LSBs of R/G/B + highlights embedded header/payload region)
+        const lsbPixels = new Uint8ClampedArray(encPixels.length);
+        const embeddedChannelLimit = ptr;
+        for (let i = 0; i < encPixels.length; i += 4) {
+          const rBit = encPixels[i] & 1;
+          const gBit = encPixels[i + 1] & 1;
+          const bBit = encPixels[i + 2] & 1;
+          if (i < embeddedChannelLimit) {
+            // Highlight active payload band in emerald luminance
+            lsbPixels[i] = rBit ? 16 : 6;
+            lsbPixels[i + 1] = gBit ? 215 : 42;
+            lsbPixels[i + 2] = bBit ? 145 : 28;
+          } else {
+            const lum = (rBit + gBit + bBit) * 42;
+            lsbPixels[i] = lum * 0.45;
+            lsbPixels[i + 1] = lum * 0.7;
+            lsbPixels[i + 2] = lum * 0.6;
+          }
+          lsbPixels[i + 3] = 255;
+        }
+        demoLsbDiffData = new ImageData(lsbPixels, w, h);
+
+        drawDemoCanvas();
+      }
+
+      function drawDemoCanvas() {
+        if (!demoOriginalData) return;
+        const ctx = demoCanvas.getContext('2d');
+        const w = demoCanvas.width;
+        const h = demoCanvas.height;
+
+        if (demoMode === 'lsb') {
+          ctx.putImageData(demoLsbDiffData, 0, 0);
+          demoSplitLine.classList.add('hidden');
+          demoSplitHandle.classList.add('hidden');
+          demoSlider.classList.add('hidden');
+          demoLeftLabel.textContent = 'Extracted LSB Bit-Plane';
+          demoRightLabel.textContent = 'Top Rows: Embedded STG1 Payload';
+          demoCaptionText.textContent = 'Magnified view of the lowest bit plane: your hidden binary header & message occupy the top pixel rows.';
+          return;
+        }
+
+        demoSplitLine.classList.remove('hidden');
+        demoSplitHandle.classList.remove('hidden');
+        demoSlider.classList.remove('hidden');
+
+        const splitPct = Number(demoSlider.value);
+        const splitX = Math.round((splitPct / 100) * w);
+
+        // Draw encoded on full canvas, then clip left half to original
+        ctx.putImageData(demoEncodedData, 0, 0);
+        if (splitX > 0) {
+          ctx.putImageData(demoOriginalData, 0, 0, 0, 0, splitX, h);
+        }
+
+        demoSplitLine.style.left = `${splitPct}%`;
+        demoSplitHandle.style.left = `${splitPct}%`;
+        demoLeftLabel.textContent = 'Original Cover';
+        demoRightLabel.textContent = 'Encoded PNG (Hidden Payload)';
+        demoCaptionText.textContent = 'Only the least significant bit of RGB channels changes — visually indistinguishable.';
+      }
+
+      demoSlider.addEventListener('input', drawDemoCanvas);
+      demoModeSplit.addEventListener('click', () => {
+        demoMode = 'split';
+        demoModeSplit.classList.add('active');
+        demoModeSplit.setAttribute('aria-selected', 'true');
+        demoModeLsb.classList.remove('active');
+        demoModeLsb.setAttribute('aria-selected', 'false');
+        drawDemoCanvas();
+      });
+      demoModeLsb.addEventListener('click', () => {
+        demoMode = 'lsb';
+        demoModeLsb.classList.add('active');
+        demoModeLsb.setAttribute('aria-selected', 'true');
+        demoModeSplit.classList.remove('active');
+        demoModeSplit.setAttribute('aria-selected', 'false');
+        drawDemoCanvas();
+      });
+
+      // =========================================================================
+      // Navigation & Mobile Drawer
+      // =========================================================================
+      const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+      const mobileDrawer = document.getElementById('mobileDrawer');
+      const desktopNavLinks = document.querySelectorAll('.nav-links .nav-link');
+
+      mobileMenuBtn.addEventListener('click', () => {
+        const isOpen = mobileDrawer.classList.toggle('open');
+        mobileMenuBtn.setAttribute('aria-expanded', String(isOpen));
+      });
+
+      document.querySelectorAll('[data-nav-mobile]').forEach((link) => {
+        link.addEventListener('click', () => {
+          mobileDrawer.classList.remove('open');
+          mobileMenuBtn.setAttribute('aria-expanded', 'false');
+        });
+      });
+
+      const sections = ['home', 'encode', 'decode', 'about'].map((id) => document.getElementById(id));
+      const observer = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (entry.isIntersecting) {
+              const id = entry.target.id;
+              desktopNavLinks.forEach((lnk) => {
+                lnk.classList.toggle('active', lnk.dataset.nav === id);
+              });
+            }
+          }
+        },
+        { rootMargin: '-35% 0px -55% 0px' }
+      );
+      sections.forEach((sec) => sec && observer.observe(sec));
+
+      // Password Visibility Toggles
+      document.querySelectorAll('[data-toggle-pw]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const input = document.getElementById(btn.dataset.togglePw);
+          if (!input) return;
+          const show = input.type === 'password';
+          input.type = show ? 'text' : 'password';
+          btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+        });
+      });
+
+      // =========================================================================
+      // Notice Helper (XSS-safe: uses textContent only)
+      // =========================================================================
+      function showNotice(el, type, message) {
+        el.className = `notice notice-${type}`;
+        el.innerHTML = '';
+
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('width', '18');
+        svg.setAttribute('height', '18');
+        svg.setAttribute('viewBox', '0 0 24 24');
+        svg.setAttribute('fill', 'none');
+        svg.setAttribute('stroke', 'currentColor');
+        svg.setAttribute('stroke-width', '2');
+        svg.setAttribute('stroke-linecap', 'round');
+        svg.setAttribute('stroke-linejoin', 'round');
+        svg.setAttribute('class', 'notice-icon');
+        svg.setAttribute('aria-hidden', 'true');
+
+        if (type === 'success') {
+          svg.innerHTML = '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>';
+        } else if (type === 'warning') {
+          svg.innerHTML = '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>';
+        } else {
+          svg.innerHTML = '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>';
+        }
+
+        const span = document.createElement('span');
+        span.textContent = message;
+
+        el.appendChild(svg);
+        el.appendChild(span);
+        el.classList.remove('hidden');
+      }
+
+      function hideNotice(el) {
+        el.classList.add('hidden');
+        el.textContent = '';
+      }
+
+      // =========================================================================
+      // ENCODE WORKFLOW
+      // =========================================================================
+      const encodeDropzone = document.getElementById('encodeDropzone');
+      const encodeFileInput = document.getElementById('encodeFileInput');
+      const encodeBrowseBtn = document.getElementById('encodeBrowseBtn');
+      const encodeSampleBtn = document.getElementById('encodeSampleBtn');
+      const heroLoadSampleBtn = document.getElementById('heroLoadSampleBtn');
+
+      const encodePreviewBox = document.getElementById('encodePreviewBox');
+      const encodeImageEmpty = document.getElementById('encodeImageEmpty');
+      const encodePreviewImg = document.getElementById('encodePreviewImg');
+      const encodeDimensions = document.getElementById('encodeDimensions');
+      const encodeFileMeta = document.getElementById('encodeFileMeta');
+      const encodeCapacity = document.getElementById('encodeCapacity');
+
+      const secretMessageInput = document.getElementById('secretMessageInput');
+      const charCounter = document.getElementById('charCounter');
+      const capacityBarFill = document.getElementById('capacityBarFill');
+      const encodeEncryptToggle = document.getElementById('encodeEncryptToggle');
+      const encodePasswordGroup = document.getElementById('encodePasswordGroup');
+      const encodePasswordInput = document.getElementById('encodePasswordInput');
+
+      const encodeBtn = document.getElementById('encodeBtn');
+      const encodeResetBtn = document.getElementById('encodeResetBtn');
+      const encodeProgressBox = document.getElementById('encodeProgressBox');
+      const encodeProgressLabel = document.getElementById('encodeProgressLabel');
+      const encodeProgressPct = document.getElementById('encodeProgressPct');
+      const encodeProgressFill = document.getElementById('encodeProgressFill');
+      const encodeNotice = document.getElementById('encodeNotice');
+
+      const encodeOutputSection = document.getElementById('encodeOutputSection');
+      const encodedPreviewImg = document.getElementById('encodedPreviewImg');
+      const encodedOutputMeta = document.getElementById('encodedOutputMeta');
+      const downloadEncodedBtn = document.getElementById('downloadEncodedBtn');
+
+      let encodeState = {
+        img: null,
+        fileName: '',
+        fileSize: 0,
+        fileType: '',
+        encodedBlob: null,
+        encodedObjectUrl: null,
+      };
+
+      function updateEncodeCapacityUI() {
+        const text = secretMessageInput.value;
+        const charCount = [...text].length;
+        const msgBytes = textEncoder.encode(text).length;
+        const isEncrypted = encodeEncryptToggle.checked;
+
+        if (!encodeState.img) {
+          charCounter.textContent = `${charCount.toLocaleString()} chars · ${msgBytes.toLocaleString()} bytes`;
+          charCounter.classList.remove('over-limit');
+          capacityBarFill.style.width = '0%';
+          capacityBarFill.className = 'capacity-fill';
+          return;
+        }
+
+        const maxMsgBytes = computeMaxMessageBytes(
+          encodeState.img.naturalWidth,
+          encodeState.img.naturalHeight,
+          isEncrypted
+        );
+        encodeCapacity.textContent = `${maxMsgBytes.toLocaleString()} bytes`;
+
+        charCounter.textContent = `${charCount.toLocaleString()} chars · ${msgBytes.toLocaleString()} / ${maxMsgBytes.toLocaleString()} bytes`;
+
+        const ratio = maxMsgBytes > 0 ? Math.min(100, (msgBytes / maxMsgBytes) * 100) : 100;
+        capacityBarFill.style.width = `${ratio}%`;
+
+        if (msgBytes > maxMsgBytes) {
+          charCounter.classList.add('over-limit');
+          capacityBarFill.className = 'capacity-fill danger';
+        } else if (ratio > 80) {
+          charCounter.classList.remove('over-limit');
+          capacityBarFill.className = 'capacity-fill warning';
+        } else {
+          charCounter.classList.remove('over-limit');
+          capacityBarFill.className = 'capacity-fill';
+        }
+      }
+
+      async function handleEncodeFile(file) {
+        hideNotice(encodeNotice);
+        const validTypes = ['image/png', 'image/jpeg'];
+        const ext = (file.name.split('.').pop() || '').toLowerCase();
+        const isAllowedExt = ['png', 'jpg', 'jpeg'].includes(ext);
+
+        if (!validTypes.includes(file.type) && !isAllowedExt) {
+          showNotice(encodeNotice, 'error', 'Unsupported file format. Please upload a PNG, JPG, or JPEG image.');
+          return;
+        }
+
+        try {
+          const { img, dataUrl } = await readFileAsImage(file);
+          encodeState.img = img;
+          encodeState.fileName = file.name;
+          encodeState.fileSize = file.size;
+          encodeState.fileType = ext ? ext.toUpperCase() : 'IMG';
+
+          encodePreviewImg.src = dataUrl;
+          encodeDimensions.textContent = `${img.naturalWidth} × ${img.naturalHeight} px`;
+          encodeFileMeta.textContent = `${encodeState.fileType} · ${formatBytes(file.size)}`;
+
+          encodeImageEmpty.classList.add('hidden');
+          encodePreviewBox.classList.remove('hidden');
+
+          // Clear previous encoded output if a new cover image is selected
+          clearEncodedOutputOnly();
+          updateEncodeCapacityUI();
+        } catch (err) {
+          showNotice(encodeNotice, 'error', err.message || 'Unable to load image.');
+        }
+      }
+
+      function loadSampleCoverIntoEncoder() {
+        hideNotice(encodeNotice);
+        const sampleCanvas = document.createElement('canvas');
+        renderCoverArtwork(sampleCanvas, 960, 600);
+        sampleCanvas.toBlob(async (blob) => {
+          if (!blob) return;
+          const sampleFile = new File([blob], 'sample-horizon.png', { type: 'image/png' });
+          await handleEncodeFile(sampleFile);
+          document.getElementById('encode').scrollIntoView({ behavior: 'smooth' });
+        }, 'image/png');
+      }
+
+      function clearEncodedOutputOnly() {
+        if (encodeState.encodedObjectUrl) {
+          URL.revokeObjectURL(encodeState.encodedObjectUrl);
+          encodeState.encodedObjectUrl = null;
+        }
+        encodeState.encodedBlob = null;
+        encodedPreviewImg.removeAttribute('src');
+        encodeOutputSection.classList.add('hidden');
+      }
+
+      function resetEncodeWorkspace() {
+        encodeFileInput.value = '';
+        encodeState.img = null;
+        encodeState.fileName = '';
+        encodeState.fileSize = 0;
+        encodeState.fileType = '';
+        encodePreviewImg.removeAttribute('src');
+        encodePreviewBox.classList.add('hidden');
+        encodeImageEmpty.classList.remove('hidden');
+        encodeDimensions.textContent = '-';
+        encodeFileMeta.textContent = '-';
+        encodeCapacity.textContent = '-';
+
+        secretMessageInput.value = '';
+        encodeEncryptToggle.checked = false;
+        encodePasswordGroup.classList.add('hidden');
+        encodePasswordInput.value = '';
+        encodePasswordInput.type = 'password';
+
+        encodeProgressBox.classList.add('hidden');
+        encodeProgressFill.style.width = '0%';
+        encodeProgressPct.textContent = '0%';
+        hideNotice(encodeNotice);
+        clearEncodedOutputOnly();
+        updateEncodeCapacityUI();
+      }
+
+      encodeBrowseBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        encodeFileInput.click();
+      });
+
+      encodeSampleBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        loadSampleCoverIntoEncoder();
+      });
+
+      heroLoadSampleBtn.addEventListener('click', loadSampleCoverIntoEncoder);
+
+      encodeDropzone.addEventListener('click', () => encodeFileInput.click());
+      encodeDropzone.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          encodeFileInput.click();
+        }
+      });
+
+      encodeFileInput.addEventListener('change', () => {
+        if (encodeFileInput.files && encodeFileInput.files[0]) {
+          handleEncodeFile(encodeFileInput.files[0]);
+        }
+      });
+
+      encodeDropzone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        encodeDropzone.classList.add('drag-active');
+      });
+      encodeDropzone.addEventListener('dragleave', () => {
+        encodeDropzone.classList.remove('drag-active');
+      });
+      encodeDropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        encodeDropzone.classList.remove('drag-active');
+        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
+          handleEncodeFile(e.dataTransfer.files[0]);
+        }
+      });
+
+      secretMessageInput.addEventListener('input', updateEncodeCapacityUI);
+
+      encodeEncryptToggle.addEventListener('change', () => {
+        encodePasswordGroup.classList.toggle('hidden', !encodeEncryptToggle.checked);
+        if (!encodeEncryptToggle.checked) {
+          encodePasswordInput.value = '';
+        }
+        updateEncodeCapacityUI();
+      });
+
+      encodeBtn.addEventListener('click', async () => {
+        hideNotice(encodeNotice);
+
+        if (!encodeState.img) {
+          showNotice(encodeNotice, 'error', 'Please upload a cover image (PNG, JPG, or JPEG) first.');
+          return;
+        }
+
+        const message = secretMessageInput.value;
+        if (message.length === 0) {
+          showNotice(encodeNotice, 'error', 'Please enter a secret message to hide inside the image.');
+          secretMessageInput.focus();
+          return;
+        }
+
+        const useEncryption = encodeEncryptToggle.checked;
+        const password = encodePasswordInput.value;
+        if (useEncryption && !password) {
+          showNotice(encodeNotice, 'error', 'Please enter an encryption password or turn off password protection.');
+          encodePasswordInput.focus();
+          return;
+        }
+
+        const msgBytes = textEncoder.encode(message).length;
+        const maxMsgBytes = computeMaxMessageBytes(
+          encodeState.img.naturalWidth,
+          encodeState.img.naturalHeight,
+          useEncryption
+        );
+        if (msgBytes > maxMsgBytes) {
+          showNotice(
+            encodeNotice,
+            'error',
+            `Message (${msgBytes.toLocaleString()} UTF-8 bytes) exceeds this image's maximum capacity (${maxMsgBytes.toLocaleString()} bytes). Please shorten your message or use a higher-resolution image.`
+          );
+          return;
+        }
+
+        encodeBtn.disabled = true;
+        encodeResetBtn.disabled = true;
+        encodeProgressBox.classList.remove('hidden');
+        clearEncodedOutputOnly();
+
+        try {
+          const result = await encodeImageLSB(
+            encodeState.img,
+            message,
+            useEncryption ? password : '',
+            (pct, label) => {
+              encodeProgressFill.style.width = `${pct}%`;
+              encodeProgressPct.textContent = `${pct}%`;
+              encodeProgressLabel.textContent = label;
+            }
+          );
+
+          encodeState.encodedBlob = result.blob;
+          encodeState.encodedObjectUrl = URL.createObjectURL(result.blob);
+          encodedPreviewImg.src = encodeState.encodedObjectUrl;
+          encodedOutputMeta.textContent = `${result.width}×${result.height} PNG · ${formatBytes(result.blob.size)}`;
+          encodeOutputSection.classList.remove('hidden');
+
+          const encText = result.encrypted ? 'AES-256-GCM encrypted & ' : '';
+          showNotice(
+            encodeNotice,
+            'success',
+            `Success! Message (${encText}${result.embeddedBytes.toLocaleString()} total bytes) embedded into lossless PNG. Download and share the PNG file directly.`
+          );
+        } catch (err) {
+          showNotice(encodeNotice, 'error', err.message || 'Encoding failed.');
+        } finally {
+          encodeBtn.disabled = false;
+          encodeResetBtn.disabled = false;
+        }
+      });
+
+      downloadEncodedBtn.addEventListener('click', () => {
+        if (!encodeState.encodedBlob || !encodeState.encodedObjectUrl) return;
+        const baseName = (encodeState.fileName || 'stego-image').replace(/\.[^.]+$/, '');
+        const a = document.createElement('a');
+        a.href = encodeState.encodedObjectUrl;
+        a.download = `${baseName}-encoded.png`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      });
+
+      encodeResetBtn.addEventListener('click', resetEncodeWorkspace);
+
+      // =========================================================================
+      // DECODE WORKFLOW
+      // =========================================================================
+      const decodeDropzone = document.getElementById('decodeDropzone');
+      const decodeFileInput = document.getElementById('decodeFileInput');
+      const decodeBrowseBtn = document.getElementById('decodeBrowseBtn');
+
+      const decodePreviewBox = document.getElementById('decodePreviewBox');
+      const decodePreviewImg = document.getElementById('decodePreviewImg');
+      const decodeDimensions = document.getElementById('decodeDimensions');
+      const decodeFileMeta = document.getElementById('decodeFileMeta');
+      const decodeCapacity = document.getElementById('decodeCapacity');
+      const decodePasswordInput = document.getElementById('decodePasswordInput');
+
+      const decodeBtn = document.getElementById('decodeBtn');
+      const decodeResetBtn = document.getElementById('decodeResetBtn');
+      const decodeProgressBox = document.getElementById('decodeProgressBox');
+      const decodeProgressLabel = document.getElementById('decodeProgressLabel');
+      const decodeProgressPct = document.getElementById('decodeProgressPct');
+      const decodeProgressFill = document.getElementById('decodeProgressFill');
+      const decodeNotice = document.getElementById('decodeNotice');
+
+      const decodeEmptyState = document.getElementById('decodeEmptyState');
+      const decodedOutputWrap = document.getElementById('decodedOutputWrap');
+      const decodedMessageOutput = document.getElementById('decodedMessageOutput');
+      const decodedStatsMeta = document.getElementById('decodedStatsMeta');
+      const copyDecodedBtn = document.getElementById('copyDecodedBtn');
+      const copyDecodedText = document.getElementById('copyDecodedText');
+
+      let decodeState = {
+        img: null,
+        fileName: '',
+        fileSize: 0,
+        fileType: '',
+      };
+
+      async function handleDecodeFile(file) {
+        hideNotice(decodeNotice);
+        const validTypes = ['image/png', 'image/jpeg'];
+        const ext = (file.name.split('.').pop() || '').toLowerCase();
+        const isAllowedExt = ['png', 'jpg', 'jpeg'].includes(ext);
+
+        if (!validTypes.includes(file.type) && !isAllowedExt) {
+          showNotice(decodeNotice, 'error', 'Unsupported file format. Please upload an encoded PNG image.');
+          return;
+        }
+
+        try {
+          const { img, dataUrl } = await readFileAsImage(file);
+          decodeState.img = img;
+          decodeState.fileName = file.name;
+          decodeState.fileSize = file.size;
+          decodeState.fileType = ext ? ext.toUpperCase() : 'IMG';
+
+          decodePreviewImg.src = dataUrl;
+          decodeDimensions.textContent = `${img.naturalWidth} × ${img.naturalHeight} px`;
+          decodeFileMeta.textContent = `${decodeState.fileType} · ${formatBytes(file.size)}`;
+          const maxCap = computeMaxMessageBytes(img.naturalWidth, img.naturalHeight, false);
+          decodeCapacity.textContent = `${maxCap.toLocaleString()} bytes`;
+
+          decodePreviewBox.classList.remove('hidden');
+
+          // Clear previous decoded message when uploading a new image
+          decodedMessageOutput.value = '';
+          decodedOutputWrap.classList.add('hidden');
+          decodeEmptyState.classList.remove('hidden');
+          decodedStatsMeta.textContent = 'Ready to decode';
+
+          if (file.type === 'image/jpeg' || ext === 'jpg' || ext === 'jpeg') {
+            showNotice(
+              decodeNotice,
+              'warning',
+              'Note: JPEG files use lossy compression that typically destroys LSB hidden data. Upload the original lossless PNG for reliable decoding.'
+            );
+          }
+        } catch (err) {
+          showNotice(decodeNotice, 'error', err.message || 'Unable to load image.');
+        }
+      }
+
+      function resetDecodeWorkspace() {
+        decodeFileInput.value = '';
+        decodeState.img = null;
+        decodeState.fileName = '';
+        decodeState.fileSize = 0;
+        decodeState.fileType = '';
+        decodePreviewImg.removeAttribute('src');
+        decodePreviewBox.classList.add('hidden');
+        decodeDimensions.textContent = '-';
+        decodeFileMeta.textContent = '-';
+        decodeCapacity.textContent = '-';
+
+        decodePasswordInput.value = '';
+        decodePasswordInput.type = 'password';
+        decodeProgressBox.classList.add('hidden');
+        decodeProgressFill.style.width = '0%';
+        decodeProgressPct.textContent = '0%';
+        hideNotice(decodeNotice);
+
+        decodedMessageOutput.value = '';
+        decodedOutputWrap.classList.add('hidden');
+        decodeEmptyState.classList.remove('hidden');
+        decodedStatsMeta.textContent = 'Awaiting image';
+        copyDecodedText.textContent = 'Copy Message';
+      }
+
+      decodeBrowseBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        decodeFileInput.click();
+      });
+
+      decodeDropzone.addEventListener('click', () => decodeFileInput.click());
+      decodeDropzone.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          decodeFileInput.click();
+        }
+      });
+
+      decodeFileInput.addEventListener('change', () => {
+        if (decodeFileInput.files && decodeFileInput.files[0]) {
+          handleDecodeFile(decodeFileInput.files[0]);
+        }
+      });
+
+      decodeDropzone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        decodeDropzone.classList.add('drag-active');
+      });
+      decodeDropzone.addEventListener('dragleave', () => {
+        decodeDropzone.classList.remove('drag-active');
+      });
+      decodeDropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        decodeDropzone.classList.remove('drag-active');
+        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
+          handleDecodeFile(e.dataTransfer.files[0]);
+        }
+      });
+
+      decodeBtn.addEventListener('click', async () => {
+        hideNotice(decodeNotice);
+
+        if (!decodeState.img) {
+          showNotice(decodeNotice, 'error', 'Please upload an encoded PNG image first.');
+          return;
+        }
+
+        decodeBtn.disabled = true;
+        decodeResetBtn.disabled = true;
+        decodeProgressBox.classList.remove('hidden');
+
+        try {
+          const result = await decodeImageLSB(
+            decodeState.img,
+            decodePasswordInput.value,
+            (pct, label) => {
+              decodeProgressFill.style.width = `${pct}%`;
+              decodeProgressPct.textContent = `${pct}%`;
+              decodeProgressLabel.textContent = label;
+            }
+          );
+
+          decodedMessageOutput.value = result.message;
+          decodeEmptyState.classList.add('hidden');
+          decodedOutputWrap.classList.remove('hidden');
+
+          const charCount = [...result.message].length;
+          const encTag = result.encrypted ? 'AES-256-GCM Decrypted' : 'UTF-8 Plaintext';
+          decodedStatsMeta.textContent = `${charCount.toLocaleString()} chars · ${result.byteLength.toLocaleString()} bytes · ${encTag}`;
+          copyDecodedText.textContent = 'Copy Message';
+
+          showNotice(
+            decodeNotice,
+            'success',
+            `Message successfully extracted (${result.byteLength.toLocaleString()} bytes, ${encTag}).`
+          );
+        } catch (err) {
+          decodedMessageOutput.value = '';
+          decodedOutputWrap.classList.add('hidden');
+          decodeEmptyState.classList.remove('hidden');
+          decodedStatsMeta.textContent = 'Extraction failed';
+
+          if (err && err.needsPassword) {
+            showNotice(decodeNotice, 'warning', err.message);
+            decodePasswordInput.focus();
+          } else {
+            showNotice(decodeNotice, 'error', err.message || 'Unable to decode message from image.');
+          }
+        } finally {
+          decodeBtn.disabled = false;
+          decodeResetBtn.disabled = false;
+        }
+      });
+
+      copyDecodedBtn.addEventListener('click', async () => {
+        const text = decodedMessageOutput.value;
+        if (!text) return;
+        try {
+          await navigator.clipboard.writeText(text);
+          copyDecodedText.textContent = 'Copied to Clipboard';
+          setTimeout(() => {
+            copyDecodedText.textContent = 'Copy Message';
+          }, 2200);
+        } catch {
+          decodedMessageOutput.select();
+          document.execCommand('copy');
+          copyDecodedText.textContent = 'Copied to Clipboard';
+          setTimeout(() => {
+            copyDecodedText.textContent = 'Copy Message';
+          }, 2200);
+        }
+      });
+
+      decodeResetBtn.addEventListener('click', resetDecodeWorkspace);
+
+      // Initialize Hero Live Demo
+      initHeroDemo();
+    })();
+  </script>
+</body>
+</html>
